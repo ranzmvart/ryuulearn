@@ -15,48 +15,50 @@ const getApiKey = () => {
 const PRIMARY_MODEL = 'gemini-3-flash-preview';
 
 /**
- * RYUU HEURISTIC ENGINE (Opsi Tanpa API Key)
- * Logika ini menganalisis teks asli secara lokal di browser.
+ * RYUU SYSTEM INSTRUCTIONS
+ * Memberikan kepribadian dan pedoman pada AI.
  */
-const smartLocalAnalyze = (fileName: string, rawContent?: string) => {
+const RYUU_SYSTEM_INSTRUCTION = `Anda adalah Ryuu, tutor pribadi bertenaga AI yang paling cerdas dan membantu.
+Tugas Anda:
+1. Menganalisis dokumen pembelajaran (PDF/Gambar/Teks) dengan akurasi tinggi.
+2. Menjelaskan konsep menggunakan analogi yang mudah dipahami anak usia 15 tahun.
+3. Selalu sertakan rumus atau istilah teknis dalam format Markdown atau LaTeX jika ada.
+4. Jangan hanya merangkum, tapi ajarkan "mengapa" dan "bagaimana" konsep tersebut bekerja.
+5. Gunakan Bahasa Indonesia yang santai namun profesional dan memotivasi.`;
+
+/**
+ * RYUU HEURISTIC ENGINE (Fallback Mode)
+ * Fix: Added explicit return type to ensure TypeScript correctly identifies the 'difficulty' 
+ * field as the union type 'Easy' | 'Medium' | 'Hard' instead of a general string.
+ */
+const smartLocalAnalyze = (fileName: string, rawContent?: string): {
+  explanation: string;
+  flashcards: Flashcard[];
+  exam: ExamQuestion[];
+} => {
   const text = rawContent || "Materi pembelajaran umum.";
   const sentences = text.split(/[.!?]/).filter(s => s.trim().length > 10);
   const words = text.split(/\s+/).filter(w => w.length > 5);
-  
-  // Ambil kata kunci unik
   const keywords = [...new Set(words)].slice(0, 10);
-  
-  // Buat Ringkasan Otomatis (Heuristik)
   const autoSummary = sentences.slice(0, 3).join(". ") + ".";
   
-  // Buat Flashcards Otomatis
-  const generatedCards: Flashcard[] = keywords.map((word, i) => ({
-    question: `Berdasarkan materi "${fileName}", apa konteks atau definisi dari "${word}"?`,
-    options: [
-      `Konsep utama terkait ${word}`,
-      `Penjelasan tambahan materi`,
-      `Detail teknis ${fileName}`,
-      `Salah semua`
-    ],
-    correctIndex: 0,
-    explanation: `Kata "${word}" merupakan salah satu elemen kunci yang ditemukan dalam analisis teks lokal Ryuu.`
-  }));
-
-  // Buat Ujian Otomatis
-  const generatedExam: ExamQuestion[] = sentences.slice(0, 5).map((s, i) => ({
-    id: i + 1,
-    question: `Apakah pernyataan ini benar sesuai materi: "${s.trim()}..."?`,
-    options: ["Benar", "Salah", "Mungkin", "Tidak Relevan"],
-    correctIndex: 0,
-    explanation: "Pernyataan ini diambil langsung dari inti teks yang Anda berikan.",
-    difficulty: i % 2 === 0 ? "Easy" : "Medium",
-    topic: fileName
-  }));
-
   return {
-    explanation: `# 📑 Analisis Ryuu: ${fileName}\n\n${autoSummary}\n\n### 🔍 Poin Penting:\n${keywords.map(k => `* **${k}**: Terdeteksi sebagai istilah teknis.`).join('\n')}\n\n### 💡 Saran Belajar:\nMateri ini memiliki sekitar ${sentences.length} poin pikiran. Ryuu menyarankan teknik *Active Recall* menggunakan fitur **Kartu Flash** di bawah.`,
-    flashcards: generatedCards,
-    exam: generatedExam
+    explanation: `# 📑 Analisis Ryuu (Offline): ${fileName}\n\n${autoSummary}\n\n### 🔍 Poin Utama:\n${keywords.map(k => `* **${k}**: Istilah kunci ditemukan.`).join('\n')}\n\n*Catatan: Anda melihat hasil analisis mesin lokal karena AI Online sedang tidak tersedia.*`,
+    flashcards: keywords.map(word => ({
+      question: `Apa yang dimaksud dengan "${word}" dalam konteks ${fileName}?`,
+      options: [`Definisi utama ${word}`, `Contoh kasus`, `Teori pendukung`, `Salah semua`],
+      correctIndex: 0,
+      explanation: `Istilah "${word}" adalah bagian krusial dari materi ini.`
+    })),
+    exam: sentences.slice(0, 5).map((s, i) => ({
+      id: i + 1,
+      question: `Analisis kalimat berikut: "${s.trim()}"?`,
+      options: ["Pernyataan Benar", "Pernyataan Salah", "Kurang Informasi", "Tidak Relevan"],
+      correctIndex: 0,
+      explanation: "Pertanyaan ini menguji pemahaman tekstual Anda.",
+      difficulty: "Medium" as "Medium",
+      topic: fileName
+    }))
   };
 };
 
@@ -67,98 +69,119 @@ const getAI = () => {
 };
 
 export const generateExplanation = async (base64Data: string, mimeType: string, type: 'SUMMARY' | 'DEEP', fileName: string): Promise<string> => {
-  let rawText = "";
-  try {
-    if (mimeType === 'text/plain') rawText = atob(base64Data);
-  } catch (e) {}
-
-  const local = smartLocalAnalyze(fileName, rawText);
   const ai = getAI();
+  const local = smartLocalAnalyze(fileName);
 
-  if (!ai) {
-    await new Promise(r => setTimeout(r, 800));
-    return local.explanation;
-  }
+  if (!ai) return local.explanation;
 
   try {
+    const prompt = type === 'SUMMARY' 
+      ? "Buatkan ringkasan materi ini yang padat, terstruktur, dan mudah dihafal." 
+      : "Jelaskan materi ini secara mendalam. Gunakan analogi kreatif, jelaskan sejarah singkatnya jika relevan, dan berikan contoh penerapan di dunia nyata.";
+
     const response = await ai.models.generateContent({
       model: PRIMARY_MODEL,
-      contents: { parts: [{ text: type === 'SUMMARY' ? "Ringkas." : "Jelaskan mendalam." }, { inlineData: { mimeType, data: base64Data } }] }
+      contents: { parts: [{ text: prompt }, { inlineData: { mimeType, data: base64Data } }] },
+      config: { systemInstruction: RYUU_SYSTEM_INSTRUCTION }
     });
     return response.text || local.explanation;
-  } catch {
+  } catch (error) {
+    console.error("AI Error:", error);
     return local.explanation;
   }
 };
 
 export const generateFlashcards = async (base64Data: string, mimeType: string, fileName: string): Promise<Flashcard[]> => {
-  let rawText = "";
-  try { if (mimeType === 'text/plain') rawText = atob(base64Data); } catch (e) {}
-  
-  const local = smartLocalAnalyze(fileName, rawText);
   const ai = getAI();
+  const local = smartLocalAnalyze(fileName);
 
   if (!ai) return local.flashcards;
 
   try {
     const response = await ai.models.generateContent({
       model: PRIMARY_MODEL,
-      contents: { parts: [{ text: "Buat kuis JSON." }, { inlineData: { mimeType, data: base64Data } }] },
-      config: { responseMimeType: "application/json" }
+      contents: { parts: [{ text: "Buat 8 kuis pilihan ganda yang menantang berdasarkan materi ini." }, { inlineData: { mimeType, data: base64Data } }] },
+      config: { 
+        systemInstruction: RYUU_SYSTEM_INSTRUCTION,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              question: { type: Type.STRING },
+              options: { type: Type.ARRAY, items: { type: Type.STRING } },
+              correctIndex: { type: Type.INTEGER },
+              explanation: { type: Type.STRING }
+            },
+            required: ["question", "options", "correctIndex", "explanation"]
+          }
+        }
+      }
     });
-    return JSON.parse(response.text || '[]');
+    // Fix: Cast JSON result to Flashcard[] to satisfy TypeScript.
+    return JSON.parse(response.text || '[]') as Flashcard[];
   } catch {
     return local.flashcards;
   }
 };
 
 export const generateExam = async (base64Data: string, mimeType: string, fileName: string): Promise<ExamQuestion[]> => {
-  let rawText = "";
-  try { if (mimeType === 'text/plain') rawText = atob(base64Data); } catch (e) {}
-  
-  const local = smartLocalAnalyze(fileName, rawText);
   const ai = getAI();
+  const local = smartLocalAnalyze(fileName);
 
   if (!ai) return local.exam;
 
   try {
     const response = await ai.models.generateContent({
       model: PRIMARY_MODEL,
-      contents: { parts: [{ text: "Buat ujian JSON." }, { inlineData: { mimeType, data: base64Data } }] },
-      config: { responseMimeType: "application/json" }
+      contents: { parts: [{ text: "Buat simulasi ujian resmi berisi 10 soal dengan tingkat kesulitan campuran." }, { inlineData: { mimeType, data: base64Data } }] },
+      config: { 
+        systemInstruction: RYUU_SYSTEM_INSTRUCTION,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              id: { type: Type.INTEGER },
+              question: { type: Type.STRING },
+              options: { type: Type.ARRAY, items: { type: Type.STRING } },
+              correctIndex: { type: Type.INTEGER },
+              explanation: { type: Type.STRING },
+              difficulty: { 
+                type: Type.STRING,
+                description: "Must be exactly 'Easy', 'Medium', or 'Hard'"
+              },
+              topic: { type: Type.STRING }
+            },
+            required: ["id", "question", "options", "correctIndex", "explanation", "difficulty", "topic"]
+          }
+        }
+      }
     });
-    return JSON.parse(response.text || '[]');
+    // Fix: Explicitly cast JSON result to ExamQuestion[] to resolve type mismatch on the 'difficulty' union property.
+    return JSON.parse(response.text || '[]') as ExamQuestion[];
   } catch {
     return local.exam;
   }
 };
 
-// Fix: Added attachment parameter (6th argument) to fix mismatch with ChatInterface.tsx
 export const chatWithDocument = async (base64Data: string, mimeType: string, history: any[], newMessage: string, fileName: string, attachment?: string): Promise<string> => {
   const ai = getAI();
-  if (!ai) {
-    return `Tutor Ryuu (Mode Lokal) aktif. Saya telah memproses **${fileName}**. Anda bisa menggunakan fitur Analisis, Kuis, atau Ujian untuk membedah isi materi ini secara otomatis tanpa internet!`;
-  }
+  if (!ai) return `Tutor Ryuu Online sedang sibuk. Saya (Ryuu Local) bisa mengonfirmasi bahwa materi **${fileName}** sudah dimuat. Gunakan menu kuis untuk mulai belajar!`;
   
   try {
     const parts: any[] = [{ text: newMessage }, { inlineData: { mimeType, data: base64Data } }];
-    
-    // Add image attachment if present
-    if (attachment) {
-      parts.push({
-        inlineData: {
-          mimeType: 'image/jpeg',
-          data: attachment
-        }
-      });
-    }
+    if (attachment) parts.push({ inlineData: { mimeType: 'image/jpeg', data: attachment } });
 
     const response = await ai.models.generateContent({
       model: PRIMARY_MODEL,
-      contents: { parts }
+      contents: { parts },
+      config: { systemInstruction: RYUU_SYSTEM_INSTRUCTION }
     });
-    return response.text || "Sedang memproses...";
+    return response.text || "Ryuu sedang memikirkan jawabannya...";
   } catch {
-    return "Maaf, gunakan mode lokal untuk saat ini.";
+    return "Maaf, Tutor Ryuu mengalami gangguan koneksi ke awan AI.";
   }
 };

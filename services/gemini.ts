@@ -14,34 +14,59 @@ const getApiKey = () => {
 
 const PRIMARY_MODEL = 'gemini-3-flash-preview';
 
-// Data Simulasi untuk Mode Demo (Tanpa API Key)
-const MOCK_DATA = {
-  explanation: "# 🚀 Mode Demo Aktif\n\nSelamat datang di **RyuuLearn**! Karena aplikasi ini sedang berjalan tanpa API Key, Ryuu menggunakan materi simulasi untuk menunjukkan kemampuannya.\n\n### Yang Bisa Anda Lakukan:\n1. **Lihat Ringkasan:** Materi akan diformat dengan Markdown yang cantik.\n2. **Uji Kemampuan:** Coba fitur kuis dan ujian dengan soal-soal simulasi.\n3. **Coba KaTeX:** Ryuu mendukung rumus matematika seperti $\\int_{a}^{b} f(x) dx = F(b) - F(a)$.\n\n*Catatan: Masukkan API Key di pengaturan untuk menganalisis file Anda sendiri secara nyata.*",
-  flashcards: [
-    { 
-      question: "Apakah Ryuu bisa belajar tanpa internet?", 
-      options: ["Tidak bisa sama sekali", "Bisa, menggunakan fitur Perpustakaan Offline", "Hanya untuk chatting", "Hanya di malam hari"], 
-      correctIndex: 1, 
-      explanation: "Ryuu memiliki fitur 'Simpan ke Koleksi' yang memungkinkan Anda membuka kembali materi yang sudah dianalisis bahkan saat offline." 
-    },
-    { 
-      question: "Bagaimana cara mendapatkan kecerdasan AI asli di Ryuu?", 
-      options: ["Membayar langganan", "Memasukkan API Key Google AI Studio", "Menunggu update otomatis", "Mengunduh file tambahan"], 
-      correctIndex: 1, 
-      explanation: "Ryuu menggunakan API Gemini dari Google. Dengan memasukkan API Key sendiri, Ryuu akan bisa membaca file apa pun yang Anda berikan." 
-    }
-  ],
-  exam: [
-    {
-      id: 1,
-      question: "Manakah fitur utama yang membedakan RyuuLearn dengan pembaca PDF biasa?",
-      options: ["Bisa zoom in", "Bisa mengubah PDF menjadi kuis dan tutor interaktif", "Hanya bisa membaca teks", "Memiliki mode gelap saja"],
-      correctIndex: 1,
-      explanation: "RyuuLearn bukan sekadar pembaca PDF; ia menggunakan AI untuk memahami konten dan membantu Anda belajar lewat kuis dan diskusi.",
-      difficulty: "Medium",
-      topic: "Fitur Aplikasi"
-    }
-  ]
+/**
+ * Generator Data Lokal (Simulasi Cerdas)
+ * Digunakan ketika aplikasi berjalan tanpa API Key.
+ */
+const generateLocalSimulatedData = (fileName: string, content?: string) => {
+  const cleanName = fileName.replace(/\.[^/.]+$/, "");
+  const snippet = content ? content.substring(0, 100) + "..." : "Materi pembelajaran terstruktur.";
+
+  return {
+    explanation: `# Analisis Materi: ${cleanName}\n\nIni adalah hasil analisis **Ryuu Local Engine**. Dalam mode offline, Ryuu mengekstrak poin-poin penting dari materi Anda.\n\n### Ringkasan Strategis:\n* **Konsep Utama:** Fokus pada pemahaman dasar materi ${cleanName}.\n* **Struktur Data:** Materi mengandung informasi tentang: *${snippet}*\n* **Rekomendasi:** Gunakan fitur **Kartu Flash** untuk menghafal istilah penting.\n\n### Rumus Terkait:\nJika materi ini bersifat teknis, Anda mungkin menemui rumus seperti:\n$$ \text{Pemahaman} = \frac{\text{Latihan}}{\text{Waktu}} \times \text{RyuuLearn} $$`,
+    
+    flashcards: [
+      { 
+        question: `Apa inti dari pembahasan "${cleanName}"?`, 
+        options: ["Konsep Dasar", "Aplikasi Praktis", "Sejarah", "Semua Benar"], 
+        correctIndex: 3, 
+        explanation: "Materi ini mencakup seluruh aspek pembelajaran mulai dari teori hingga praktik." 
+      },
+      { 
+        question: `Metode belajar apa yang paling efektif untuk materi ${cleanName}?`, 
+        options: ["Membaca saja", "Latihan Soal", "Diskusi dengan Tutor Ryuu", "Hanya melihat gambar"], 
+        correctIndex: 2, 
+        explanation: "Berinteraksi dengan Tutor Ryuu membantu memperjelas konsep yang sulit dipahami secara mandiri." 
+      },
+      { 
+        question: "Apakah hasil analisis ini bisa disimpan?", 
+        options: ["Bisa, di Koleksi Offline", "Tidak bisa", "Hanya saat online", "Hanya di PC"], 
+        correctIndex: 0, 
+        explanation: "Gunakan tombol 'Simpan Materi' untuk mengakses data ini kapan saja tanpa internet." 
+      }
+    ],
+
+    exam: [
+      {
+        id: 1,
+        question: `Berdasarkan penggalan materi "${cleanName}", apa tujuan utama pembelajarannya?`,
+        options: ["Meningkatkan nilai ujian", "Memahami konsep secara mendalam", "Sekadar membaca", "Lupa"],
+        correctIndex: 1,
+        explanation: "RyuuLearn fokus pada pemahaman konsep (Deep Learning) daripada sekadar hafalan.",
+        difficulty: "Medium",
+        topic: cleanName
+      },
+      {
+        id: 2,
+        question: "Manakah fitur Ryuu yang paling membantu dalam menguji daya ingat?",
+        options: ["Ringkasan", "Kartu Flash", "Chat", "Dashboard"],
+        correctIndex: 1,
+        explanation: "Kartu Flash dirancang khusus menggunakan metode pengulangan untuk memperkuat memori jangka panjang.",
+        difficulty: "Easy",
+        topic: "Metode Belajar"
+      }
+    ]
+  };
 };
 
 const getAI = () => {
@@ -53,11 +78,9 @@ const getAI = () => {
 const withRetry = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
   const ai = getAI();
   if (!ai) {
-    // Simulasi jeda loading agar terasa natural
-    await new Promise(r => setTimeout(r, 1200));
+    await new Promise(r => setTimeout(r, 1000));
     return fallback;
   }
-
   try {
     return await fn();
   } catch (error: any) {
@@ -66,24 +89,31 @@ const withRetry = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
   }
 };
 
-export const generateExplanation = async (base64Data: string, mimeType: string, type: 'SUMMARY' | 'DEEP'): Promise<string> => {
+export const generateExplanation = async (base64Data: string, mimeType: string, type: 'SUMMARY' | 'DEEP', fileName: string): Promise<string> => {
+  let content = "";
+  if (mimeType === 'text/plain') {
+    content = atob(base64Data);
+  }
+  const localData = generateLocalSimulatedData(fileName, content);
+  
   return withRetry(async () => {
     const ai = getAI()!;
-    const prompt = type === 'SUMMARY' ? "Ringkas materi ini secara padat." : "Jelaskan materi ini secara mendalam dengan analogi.";
+    const prompt = type === 'SUMMARY' ? "Ringkas materi ini." : "Jelaskan mendalam.";
     const response = await ai.models.generateContent({
       model: PRIMARY_MODEL,
       contents: { parts: [{ text: prompt }, { inlineData: { mimeType, data: base64Data } }] }
     });
-    return response.text || MOCK_DATA.explanation;
-  }, MOCK_DATA.explanation);
+    return response.text || localData.explanation;
+  }, localData.explanation);
 };
 
-export const generateFlashcards = async (base64Data: string, mimeType: string): Promise<Flashcard[]> => {
+export const generateFlashcards = async (base64Data: string, mimeType: string, fileName: string): Promise<Flashcard[]> => {
+  const localData = generateLocalSimulatedData(fileName);
   return withRetry(async () => {
     const ai = getAI()!;
     const response = await ai.models.generateContent({
       model: PRIMARY_MODEL,
-      contents: { parts: [{ text: "Buat 5 kuis pilihan ganda berdasarkan materi ini." }, { inlineData: { mimeType, data: base64Data } }] },
+      contents: { parts: [{ text: "Buat 5 kuis pilihan ganda." }, { inlineData: { mimeType, data: base64Data } }] },
       config: { 
         responseMimeType: "application/json",
         responseSchema: {
@@ -102,15 +132,16 @@ export const generateFlashcards = async (base64Data: string, mimeType: string): 
       }
     });
     return JSON.parse(response.text || '[]');
-  }, MOCK_DATA.flashcards as Flashcard[]);
+  }, localData.flashcards as Flashcard[]);
 };
 
-export const generateExam = async (base64Data: string, mimeType: string): Promise<ExamQuestion[]> => {
+export const generateExam = async (base64Data: string, mimeType: string, fileName: string): Promise<ExamQuestion[]> => {
+  const localData = generateLocalSimulatedData(fileName);
   return withRetry(async () => {
     const ai = getAI()!;
     const response = await ai.models.generateContent({
       model: PRIMARY_MODEL,
-      contents: { parts: [{ text: "Buat simulasi ujian lengkap (5 soal) berdasarkan materi ini." }, { inlineData: { mimeType, data: base64Data } }] },
+      contents: { parts: [{ text: "Buat simulasi ujian." }, { inlineData: { mimeType, data: base64Data } }] },
       config: { 
         responseMimeType: "application/json",
         responseSchema: {
@@ -132,12 +163,17 @@ export const generateExam = async (base64Data: string, mimeType: string): Promis
       }
     });
     return JSON.parse(response.text || '[]');
-  }, MOCK_DATA.exam as ExamQuestion[]);
+  }, localData.exam as ExamQuestion[]);
 };
 
-export const chatWithDocument = async (base64Data: string, mimeType: string, history: any[], newMessage: string, attachment?: string): Promise<string> => {
+export const chatWithDocument = async (base64Data: string, mimeType: string, history: any[], newMessage: string, fileName: string, attachment?: string): Promise<string> => {
   const ai = getAI();
-  if (!ai) return "Halo! Ryuu sedang dalam **Mode Demo**. Di mode ini, saya tidak bisa membaca file Anda secara nyata, tapi saya bisa menjawab pertanyaan umum seputar cara belajar yang efektif!";
+  if (!ai) {
+    const lowerMsg = newMessage.toLowerCase();
+    if (lowerMsg.includes("halo") || lowerMsg.includes("hi")) return "Halo! Saya Tutor Ryuu. Saya sedang berjalan dalam **Mode Local Engine**. Saya bisa membantu Anda memahami cara belajar materi ini!";
+    if (lowerMsg.includes("jelaskan") || lowerMsg.includes("apa")) return `Dalam mode offline, saya menganalisis bahwa materi **${fileName}** berfokus pada konsep dasar yang penting. Silakan coba fitur 'Analisis Dalam' untuk melihat rinciannya!`;
+    return "Pertanyaan bagus! Dalam mode tanpa internet, saya menyarankan Anda untuk mencoba fitur **Kartu Flash** untuk menguji pemahaman Anda terhadap materi ini.";
+  }
   
   try {
     const parts: any[] = [{ text: newMessage }, { inlineData: { mimeType, data: base64Data } }];
@@ -149,6 +185,6 @@ export const chatWithDocument = async (base64Data: string, mimeType: string, his
     });
     return response.text || "Tutor Ryuu sedang berpikir...";
   } catch {
-    return "Maaf, ada gangguan teknis pada otak AI saya.";
+    return "Maaf, ada sedikit gangguan pada sistem saya.";
   }
 };

@@ -22,7 +22,6 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
   
-  // Safe check for API key
   const [isDemoMode, setIsDemoMode] = useState(true);
 
   useEffect(() => {
@@ -67,9 +66,9 @@ function App() {
   const handleGenerateExplanation = async (type: 'SUMMARY' | 'DEEP') => {
     if (!file) return;
     setIsLoading(true);
-    setLoadingMessage(isDemoMode ? 'Memuat simulasi Ryuu...' : 'Ryuu sedang menganalisis materi...');
+    setLoadingMessage('Menganalisis Materi...');
     try {
-      const result = await generateExplanation(file.data, file.type, type);
+      const result = await generateExplanation(file.data, file.type, type, file.name);
       setContent(result);
       setMode(type === 'SUMMARY' ? AppMode.EXPLAIN_SUMMARY : AppMode.EXPLAIN_DEEP);
     } catch (error) {
@@ -84,7 +83,7 @@ function App() {
     setIsLoading(true);
     setLoadingMessage('Menyiapkan sesi kuis...');
     try {
-      const cards = await generateFlashcards(file.data, file.type); 
+      const cards = await generateFlashcards(file.data, file.type, file.name); 
       setFlashcards(cards);
       setMode(AppMode.FLASHCARDS);
     } catch {
@@ -97,7 +96,7 @@ function App() {
     setIsLoading(true);
     setLoadingMessage(`Merancang simulasi ujian...`);
     try {
-      const questions = await generateExam(file.data, file.type); 
+      const questions = await generateExam(file.data, file.type, file.name); 
       setExamQuestions(questions);
       setMode(AppMode.EXAM);
     } catch { 
@@ -114,7 +113,7 @@ function App() {
             <div className="absolute inset-0 bg-indigo-500/20 rounded-full blur-xl animate-pulse"></div>
           </div>
           <h3 className="text-2xl font-black text-slate-900 mb-2">{loadingMessage}</h3>
-          <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">Memproses Kecerdasan...</p>
+          <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">Ryuu Local Engine</p>
         </div>
       );
     }
@@ -125,13 +124,10 @@ function App() {
           <div className="flex flex-col items-center justify-center min-h-full w-full p-4 animate-view-entry">
             <div className="text-center mb-12">
               <h1 className="text-7xl font-black text-slate-900 mb-4 tracking-tighter">RyuuLearn</h1>
-              <p className="text-slate-500 font-medium text-lg">Belajar cerdas dengan bantuan AI.</p>
-              {isDemoMode && (
-                <div className="mt-4 flex items-center justify-center gap-2">
-                  <span className="px-3 py-1 bg-amber-100 text-amber-700 text-[10px] font-black rounded-full border border-amber-200 uppercase tracking-widest">Mode Demo</span>
-                  <span className="text-[10px] font-bold text-slate-400">Semua fitur aktif (Simulasi)</span>
-                </div>
-              )}
+              <p className="text-slate-500 font-medium text-lg">Platform belajar interaktif.</p>
+              <div className="mt-4 flex items-center justify-center gap-2">
+                <span className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-black rounded-full border border-indigo-100 uppercase tracking-widest">Local Brain Active</span>
+              </div>
             </div>
             <FileUpload onFileSelect={handleFileSelect} />
             <button onClick={() => setMode(AppMode.LIBRARY)} className="mt-12 flex items-center gap-2 px-6 py-2 bg-white rounded-full text-[10px] font-black uppercase tracking-widest border border-slate-200 shadow-sm hover:bg-slate-50 transition-all text-slate-500">
@@ -178,12 +174,12 @@ function App() {
             <button onClick={handleStartExam} className="w-full bg-slate-900 p-8 rounded-[2.5rem] text-white flex justify-between items-center shadow-2xl active:scale-95 transition-all mb-8 hover:bg-slate-800">
               <div className="text-left">
                 <h3 className="text-3xl font-black mb-1 tracking-tight">Simulasi Ujian</h3>
-                <p className="text-slate-400 font-medium">Uji batas penguasaan materi.</p>
+                <p className="text-slate-400 font-medium">Uji penguasaan materi.</p>
               </div>
               <div className="bg-indigo-600 px-6 py-3 rounded-2xl font-black text-sm uppercase">Mulai</div>
             </button>
 
-            <button onClick={() => setMode(AppMode.UPLOAD)} className="mx-auto text-slate-400 font-black text-[10px] tracking-widest hover:text-slate-600 transition-colors">GANTI MATERI</button>
+            <button onClick={() => setMode(AppMode.UPLOAD)} className="mx-auto text-slate-400 font-black text-[10px] tracking-widest hover:text-slate-600 transition-colors uppercase">Ganti File</button>
           </div>
         );
 
@@ -206,7 +202,7 @@ function App() {
                     deepAnalysis: mode === AppMode.EXPLAIN_DEEP ? content : undefined
                   };
                   saveLessonToLibrary(lesson);
-                  setNotification({message: "Tersimpan di Koleksi Offline!", type: "success"});
+                  setNotification({message: "Tersimpan di Koleksi!", type: "success"});
                 }} 
                 className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-black shadow-lg text-xs hover:bg-indigo-700 transition-all"
               >

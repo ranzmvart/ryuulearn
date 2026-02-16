@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { UploadedFile, ChatMessage } from '../types';
 import { chatWithDocument } from '../services/gemini';
@@ -15,7 +16,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ file, onBack, initialQuer
     {
       id: 'welcome',
       role: 'model',
-      text: `Halo! Tutor RyuuLearn siap membantu diskusi materi "${file.name}". Ada kesulitan soal hitungan atau butuh analogi baru?`,
+      text: `Halo! Tutor Ryuu siap membantu diskusi materi "${file.name}". Ada kesulitan soal hitungan atau butuh analogi baru?`,
       timestamp: Date.now()
     }
   ]);
@@ -75,7 +76,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ file, onBack, initialQuer
 
     try {
       const historyForApi = messages.map(m => ({ role: m.role, text: m.text }));
-      const responseText = await chatWithDocument(file.data, file.type, historyForApi, userMsg.text, userMsg.attachment);
+      const responseText = await chatWithDocument(file.data, file.type, historyForApi, userMsg.text, file.name, userMsg.attachment);
       
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
@@ -96,8 +97,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ file, onBack, initialQuer
   };
 
   return (
-    <div className="flex flex-col h-full w-full max-w-5xl mx-auto bg-white md:bg-slate-50/50 md:rounded-[3rem] md:shadow-2xl overflow-hidden relative md:border md:border-white">
-      {/* Header Chat Responsif */}
+    <div className="flex flex-col h-full w-full max-w-5xl mx-auto bg-white md:bg-slate-50/50 md:rounded-[3rem] md:shadow-2xl overflow-hidden relative md:border md:border-white animate-view-entry">
       <div className="p-4 md:p-6 border-b border-indigo-50 flex items-center bg-white/95 backdrop-blur-xl z-20">
         <button onClick={onBack} className="p-2 md:p-3 hover:bg-slate-100 rounded-xl mr-3 md:mr-4 transition-colors">
           <ChevronLeftIcon className="w-5 h-5 text-slate-600" />
@@ -109,13 +109,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ file, onBack, initialQuer
             </div>
             Tutor Ryuu
           </h3>
-          <p className="text-[9px] md:text-xs font-bold text-slate-400 truncate mt-0.5">
-            Materi: {file.name}
+          <p className="text-[9px] md:text-xs font-bold text-slate-400 truncate mt-0.5 uppercase tracking-widest">
+            {file.name}
           </p>
         </div>
       </div>
 
-      {/* Message Area Responsif */}
       <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 md:space-y-8 custom-scrollbar bg-[radial-gradient(#e5e7eb_0.5px,transparent_0.5px)] [background-size:15px_15px]">
         {messages.map((msg) => (
           <div 
@@ -160,7 +159,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ file, onBack, initialQuer
         <div ref={messagesEndRef} className="h-4" />
       </div>
 
-      {/* Input Area Responsif */}
       <div className="p-3 md:p-8 bg-white border-t border-slate-100 shadow-[0_-10px_30px_rgba(0,0,0,0.02)] relative z-20">
         {attachment && (
           <div className="flex items-center gap-3 mb-3 bg-indigo-50 p-2 rounded-xl w-fit border border-indigo-100 animate-slide-up">

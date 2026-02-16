@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="id">
   <head>
@@ -8,6 +9,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
     <script>
+      // Inisialisasi shim untuk process.env agar tidak error di browser
+      window.process = window.process || { env: {} };
+      
       tailwind.config = {
         theme: {
           extend: {
@@ -70,12 +74,10 @@
         -webkit-overflow-scrolling: touch;
       }
 
-      /* Fix for mobile 3D flips */
       .perspective-1000 { perspective: 1000px; }
       .backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
       .rotate-y-180 { transform: rotateY(180deg); }
       
-      /* Active buttons on touch */
       button:active { transform: scale(0.97); }
     </style>
   <script type="importmap">

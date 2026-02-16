@@ -23,17 +23,19 @@ function App() {
   const [loadingMessage, setLoadingMessage] = useState('');
   const [isOnline, setIsOnline] = useState(false);
 
-  // Deteksi AI Online yang lebih tangguh
+  // Deteksi AI Online yang lebih cerdas dan tangguh
   const checkOnlineStatus = async () => {
     try {
-      // 1. Cek process.env secara langsung
-      const envKey = process.env.API_KEY;
-      if (envKey && envKey !== "undefined" && envKey.length > 5) {
+      // @ts-ignore
+      const apiKey = process.env.API_KEY || (typeof process !== 'undefined' && process.env ? process.env.API_KEY : null);
+      
+      // Jika kunci tersedia di env
+      if (apiKey && apiKey !== "undefined" && apiKey.length > 5) {
         setIsOnline(true);
         return;
       }
 
-      // 2. Cek window.aistudio jika di lingkungan terintegrasi
+      // Jika kunci tersedia via window.aistudio
       // @ts-ignore
       if (window.aistudio && await window.aistudio.hasSelectedApiKey()) {
         setIsOnline(true);
@@ -41,14 +43,14 @@ function App() {
         setIsOnline(false);
       }
     } catch (e) {
+      console.warn("Status check failed", e);
       setIsOnline(false);
     }
   };
 
   useEffect(() => {
     checkOnlineStatus();
-    // Re-check periodically
-    const interval = setInterval(checkOnlineStatus, 2000);
+    const interval = setInterval(checkOnlineStatus, 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -57,9 +59,9 @@ function App() {
     if (window.aistudio) {
       // @ts-ignore
       await window.aistudio.openSelectKey();
-      setIsOnline(true); // Asumsi sukses setelah buka dialog
+      setIsOnline(true);
     } else {
-      alert("Fitur pemilihan kunci otomatis tidak tersedia di browser ini. Mohon setel API_KEY di environment variable Netlify.");
+      alert("Pastikan Anda sudah menamai variabel di Netlify dengan 'API_KEY' (tanpa VITE_). Setelah itu, lakukan 'Clear cache and deploy' di dashboard Netlify.");
     }
   };
 
@@ -157,18 +159,24 @@ function App() {
               <h1 className="text-8xl font-black text-slate-900 mb-4 tracking-tighter">RyuuLearn</h1>
               <p className="text-slate-500 font-medium text-lg">Belajar lebih cepat dengan bantuan Tutor AI.</p>
               
-              <div className="mt-6 flex flex-col items-center gap-4">
-                 <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${isOnline ? 'bg-green-50 text-green-600 border-green-100 shadow-[0_0_15px_rgba(34,197,94,0.2)]' : 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse'}`}>
-                   {isOnline ? '● Ryuu Online Connected' : '○ AI Terputus (Mode Terbatas)'}
+              <div className="mt-8 flex flex-col items-center gap-5">
+                 <div className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all duration-700 shadow-sm ${isOnline ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-500 border-red-100 animate-pulse'}`}>
+                   {isOnline ? '● Ryuu Online Connected' : '○ AI Belum Terhubung (Lokal)'}
                  </div>
                  
                  {!isOnline && (
-                   <button 
-                    onClick={handleConnectAI}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-xl hover:shadow-indigo-200 transition-all active:scale-95"
-                   >
-                     <SparklesIcon className="w-4 h-4" /> Aktifkan Tutor Ryuu Online
-                   </button>
+                   <div className="flex flex-col items-center gap-3">
+                     <button 
+                      onClick={handleConnectAI}
+                      className="group flex items-center gap-3 px-8 py-3.5 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-2xl hover:bg-indigo-600 transition-all active:scale-95"
+                     >
+                       <SparklesIcon className="w-4 h-4 group-hover:rotate-12 transition-transform" /> 
+                       Hubungkan Tutor AI
+                     </button>
+                     <p className="text-[9px] text-slate-400 font-bold max-w-xs leading-relaxed">
+                        Jika di Netlify, pastikan nama variabel adalah <span className="text-slate-600">API_KEY</span> (bukan VITE_API_KEY).
+                     </p>
+                   </div>
                  )}
               </div>
             </div>
@@ -223,7 +231,7 @@ function App() {
               </button>
             </div>
 
-            <button onClick={handleStartExam} className="w-full bg-slate-900 p-10 rounded-[3rem] text-white flex justify-between items-center shadow-2xl active:scale-95 transition-all mb-12 hover:bg-indigo-700 group">
+            <button onClick={handleStartExam} className="w-full bg-slate-900 p-10 rounded-[3rem] text-white flex justify-between items-center shadow-2xl active:scale-95 transition-all mb-12 hover:bg-indigo-700 group border border-white/5">
               <div className="text-left">
                 <h3 className="text-4xl font-black mb-1 tracking-tight group-hover:scale-105 transition-transform origin-left">Simulasi Ujian</h3>
                 <p className="text-slate-400 font-medium text-lg">Uji tingkat penguasaan konsep Anda.</p>

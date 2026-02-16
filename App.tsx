@@ -23,11 +23,45 @@ function App() {
   const [loadingMessage, setLoadingMessage] = useState('');
   const [isOnline, setIsOnline] = useState(false);
 
+  // Deteksi AI Online yang lebih tangguh
+  const checkOnlineStatus = async () => {
+    try {
+      // 1. Cek process.env secara langsung
+      const envKey = process.env.API_KEY;
+      if (envKey && envKey !== "undefined" && envKey.length > 5) {
+        setIsOnline(true);
+        return;
+      }
+
+      // 2. Cek window.aistudio jika di lingkungan terintegrasi
+      // @ts-ignore
+      if (window.aistudio && await window.aistudio.hasSelectedApiKey()) {
+        setIsOnline(true);
+      } else {
+        setIsOnline(false);
+      }
+    } catch (e) {
+      setIsOnline(false);
+    }
+  };
+
   useEffect(() => {
-    // @ts-ignore
-    const hasKey = typeof process !== 'undefined' && !!process.env?.API_KEY;
-    setIsOnline(hasKey);
+    checkOnlineStatus();
+    // Re-check periodically
+    const interval = setInterval(checkOnlineStatus, 2000);
+    return () => clearInterval(interval);
   }, []);
+
+  const handleConnectAI = async () => {
+    // @ts-ignore
+    if (window.aistudio) {
+      // @ts-ignore
+      await window.aistudio.openSelectKey();
+      setIsOnline(true); // Asumsi sukses setelah buka dialog
+    } else {
+      alert("Fitur pemilihan kunci otomatis tidak tersedia di browser ini. Mohon setel API_KEY di environment variable Netlify.");
+    }
+  };
 
   const [userStats, setUserStats] = useState<UserStats>(() => {
     const saved = localStorage.getItem('ryuu_user_stats');
@@ -122,10 +156,20 @@ function App() {
             <div className="text-center mb-12">
               <h1 className="text-8xl font-black text-slate-900 mb-4 tracking-tighter">RyuuLearn</h1>
               <p className="text-slate-500 font-medium text-lg">Belajar lebih cepat dengan bantuan Tutor AI.</p>
-              <div className="mt-4 flex items-center justify-center gap-2">
-                 <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${isOnline ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
-                   {isOnline ? '● AI Online Active' : '○ Local Mode Active'}
-                 </span>
+              
+              <div className="mt-6 flex flex-col items-center gap-4">
+                 <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${isOnline ? 'bg-green-50 text-green-600 border-green-100 shadow-[0_0_15px_rgba(34,197,94,0.2)]' : 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse'}`}>
+                   {isOnline ? '● Ryuu Online Connected' : '○ AI Terputus (Mode Terbatas)'}
+                 </div>
+                 
+                 {!isOnline && (
+                   <button 
+                    onClick={handleConnectAI}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-xl hover:shadow-indigo-200 transition-all active:scale-95"
+                   >
+                     <SparklesIcon className="w-4 h-4" /> Aktifkan Tutor Ryuu Online
+                   </button>
+                 )}
               </div>
             </div>
             <FileUpload onFileSelect={handleFileSelect} />
@@ -201,23 +245,28 @@ function App() {
               <button onClick={() => setMode(AppMode.DASHBOARD)} className="flex items-center gap-2 font-black text-slate-600 bg-white px-5 py-3 rounded-2xl shadow-sm hover:bg-slate-50 transition-all">
                 <ChevronLeftIcon className="w-5 h-5" /> Dashboard
               </button>
-              <button 
-                onClick={() => {
-                  const lesson: SavedLesson = {
-                    id: Date.now().toString(),
-                    name: file?.name || 'Materi Tanpa Judul',
-                    timestamp: Date.now(),
-                    file: file!,
-                    summary: mode === AppMode.EXPLAIN_SUMMARY ? content : undefined,
-                    deepAnalysis: mode === AppMode.EXPLAIN_DEEP ? content : undefined
-                  };
-                  saveLessonToLibrary(lesson);
-                  setNotification({message: "Tersimpan di Perpustakaan!", type: "success"});
-                }} 
-                className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black shadow-xl text-xs hover:bg-indigo-700 transition-all"
-              >
-                Simpan Materi
-              </button>
+              <div className="flex items-center gap-4">
+                <div className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border ${isOnline ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-500 border-red-100'}`}>
+                  {isOnline ? 'Online' : 'Limited'}
+                </div>
+                <button 
+                  onClick={() => {
+                    const lesson: SavedLesson = {
+                      id: Date.now().toString(),
+                      name: file?.name || 'Materi Tanpa Judul',
+                      timestamp: Date.now(),
+                      file: file!,
+                      summary: mode === AppMode.EXPLAIN_SUMMARY ? content : undefined,
+                      deepAnalysis: mode === AppMode.EXPLAIN_DEEP ? content : undefined
+                    };
+                    saveLessonToLibrary(lesson);
+                    setNotification({message: "Tersimpan di Perpustakaan!", type: "success"});
+                  }} 
+                  className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black shadow-xl text-xs hover:bg-indigo-700 transition-all"
+                >
+                  Simpan Materi
+                </button>
+              </div>
             </div>
             <div className="bg-white rounded-[3rem] p-10 md:p-16 overflow-y-auto custom-scrollbar flex-1 shadow-2xl border border-indigo-50">
               <MarkdownRenderer content={content} />

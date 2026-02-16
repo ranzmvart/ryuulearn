@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import FileUpload from './components/FileUpload.tsx';
 import MarkdownRenderer from './components/MarkdownRenderer.tsx';
 import FlashcardGame from './components/FlashcardGame.tsx';
@@ -9,7 +9,7 @@ import LibraryView from './components/LibraryView.tsx';
 import { AppMode, UploadedFile, Flashcard, ExamQuestion, UserStats, SavedLesson } from './types.ts';
 import { generateExplanation, generateFlashcards, generateExam } from './services/gemini.ts';
 import { saveLessonToLibrary } from './services/storage.ts';
-import { BookIcon, BrainIcon, CardsIcon, MessageCircleIcon, ChevronLeftIcon, SparklesIcon } from './components/Icons.tsx';
+import { BookIcon, BrainIcon, CardsIcon, MessageCircleIcon, ChevronLeftIcon } from './components/Icons.tsx';
 
 const XP_PER_LEVEL = 500;
 
@@ -21,18 +21,6 @@ function App() {
   const [examQuestions, setExamQuestions] = useState<ExamQuestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
-  
-  const [isDemoMode, setIsDemoMode] = useState(true);
-
-  useEffect(() => {
-    try {
-      // @ts-ignore
-      const hasKey = typeof process !== 'undefined' && !!process.env?.API_KEY;
-      setIsDemoMode(!hasKey);
-    } catch {
-      setIsDemoMode(true);
-    }
-  }, []);
 
   const [userStats, setUserStats] = useState<UserStats>(() => {
     const saved = localStorage.getItem('ryuu_user_stats');
@@ -46,7 +34,9 @@ function App() {
       const newXP = prev.xp + amount;
       const newLevel = Math.floor(newXP / XP_PER_LEVEL) + 1;
       setNotification({ message: `+${amount} XP: ${reason}`, type: 'xp' });
-      return { ...prev, xp: newXP, level: newLevel };
+      const stats = { ...prev, xp: newXP, level: newLevel };
+      localStorage.setItem('ryuu_user_stats', JSON.stringify(stats));
+      return stats;
     });
   };
 
@@ -66,7 +56,7 @@ function App() {
   const handleGenerateExplanation = async (type: 'SUMMARY' | 'DEEP') => {
     if (!file) return;
     setIsLoading(true);
-    setLoadingMessage('Menganalisis Materi...');
+    setLoadingMessage('Menganalisis Konten...');
     try {
       const result = await generateExplanation(file.data, file.type, type, file.name);
       setContent(result);
@@ -81,7 +71,7 @@ function App() {
   const handleStartFlashcards = async () => {
     if (!file) return;
     setIsLoading(true);
-    setLoadingMessage('Menyiapkan sesi kuis...');
+    setLoadingMessage('Membangun Kuis...');
     try {
       const cards = await generateFlashcards(file.data, file.type, file.name); 
       setFlashcards(cards);
@@ -94,7 +84,7 @@ function App() {
   const handleStartExam = async () => {
     if (!file) return;
     setIsLoading(true);
-    setLoadingMessage(`Merancang simulasi ujian...`);
+    setLoadingMessage(`Menyusun Ujian...`);
     try {
       const questions = await generateExam(file.data, file.type, file.name); 
       setExamQuestions(questions);
@@ -107,13 +97,9 @@ function App() {
   const renderContent = () => {
     if (isLoading) {
       return (
-        <div className="flex flex-col items-center justify-center h-full p-6 text-center animate-fade-in bg-white/80 backdrop-blur-sm">
-          <div className="relative mb-8">
-            <BrainIcon className="w-16 h-16 text-indigo-600 animate-float" />
-            <div className="absolute inset-0 bg-indigo-500/20 rounded-full blur-xl animate-pulse"></div>
-          </div>
+        <div className="flex flex-col items-center justify-center h-full p-6 text-center animate-fade-in">
+          <BrainIcon className="w-16 h-16 text-indigo-600 animate-float mb-6" />
           <h3 className="text-2xl font-black text-slate-900 mb-2">{loadingMessage}</h3>
-          <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">Ryuu Local Engine</p>
         </div>
       );
     }
@@ -124,21 +110,16 @@ function App() {
           <div className="flex flex-col items-center justify-center min-h-full w-full p-4 animate-view-entry">
             <div className="text-center mb-12">
               <h1 className="text-7xl font-black text-slate-900 mb-4 tracking-tighter">RyuuLearn</h1>
-              <p className="text-slate-500 font-medium text-lg">Platform belajar interaktif.</p>
-              <div className="mt-4 flex items-center justify-center gap-2">
-                <span className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-black rounded-full border border-indigo-100 uppercase tracking-widest">Local Brain Active</span>
-              </div>
+              <p className="text-slate-500 font-medium text-lg">Asisten belajar cerdas Anda.</p>
             </div>
             <FileUpload onFileSelect={handleFileSelect} />
-            <button onClick={() => setMode(AppMode.LIBRARY)} className="mt-12 flex items-center gap-2 px-6 py-2 bg-white rounded-full text-[10px] font-black uppercase tracking-widest border border-slate-200 shadow-sm hover:bg-slate-50 transition-all text-slate-500">
-               <BookIcon className="w-4 h-4" /> Buka Koleksi Offline
-            </button>
+            <button onClick={() => setMode(AppMode.LIBRARY)} className="mt-12 text-slate-400 font-black text-[10px] tracking-widest hover:text-indigo-600 transition-colors uppercase">Buka Koleksi Materi</button>
           </div>
         );
 
       case AppMode.DASHBOARD:
         return (
-          <div className="max-w-4xl mx-auto w-full flex flex-col p-6 animate-view-entry overflow-y-auto no-scrollbar pb-10">
+          <div className="max-w-4xl mx-auto w-full flex flex-col p-6 animate-view-entry">
             <div className="bg-white rounded-[2rem] p-6 mb-8 shadow-xl border border-indigo-50 flex items-center gap-6">
               <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center text-white text-2xl font-black shadow-lg">{userStats.level}</div>
               <div className="flex-1">
@@ -153,33 +134,33 @@ function App() {
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-6">
-              <button onClick={() => handleGenerateExplanation('SUMMARY')} className="p-6 bg-white rounded-[2rem] shadow-md hover:shadow-xl transition-all text-left flex flex-col gap-4 border border-transparent hover:border-indigo-100">
+              <button onClick={() => handleGenerateExplanation('SUMMARY')} className="p-6 bg-white rounded-[2rem] shadow-md hover:shadow-xl transition-all text-left flex flex-col gap-4">
                 <BookIcon className="w-6 h-6 text-indigo-600" />
-                <h3 className="text-lg font-black text-slate-900 leading-tight">Ringkasan</h3>
+                <h3 className="text-lg font-black text-slate-900 leading-tight">Ringkasan Materi</h3>
               </button>
-              <button onClick={() => handleGenerateExplanation('DEEP')} className="p-6 bg-white rounded-[2rem] shadow-md hover:shadow-xl transition-all text-left flex flex-col gap-4 border border-transparent hover:border-indigo-100">
+              <button onClick={() => handleGenerateExplanation('DEEP')} className="p-6 bg-white rounded-[2rem] shadow-md hover:shadow-xl transition-all text-left flex flex-col gap-4">
                 <BrainIcon className="w-6 h-6 text-indigo-600" />
-                <h3 className="text-lg font-black text-slate-900 leading-tight">Analisis Dalam</h3>
+                <h3 className="text-lg font-black text-slate-900 leading-tight">Analisis Mendalam</h3>
               </button>
-              <button onClick={handleStartFlashcards} className="p-6 bg-white rounded-[2rem] shadow-md hover:shadow-xl transition-all text-left flex flex-col gap-4 border border-transparent hover:border-indigo-100">
+              <button onClick={handleStartFlashcards} className="p-6 bg-white rounded-[2rem] shadow-md hover:shadow-xl transition-all text-left flex flex-col gap-4">
                 <CardsIcon className="w-6 h-6 text-indigo-600" />
-                <h3 className="text-lg font-black text-slate-900 leading-tight">Kartu Flash</h3>
+                <h3 className="text-lg font-black text-slate-900 leading-tight">Kartu Hafalan</h3>
               </button>
-              <button onClick={() => setMode(AppMode.CHAT)} className="p-6 bg-white rounded-[2rem] shadow-md hover:shadow-xl transition-all text-left flex flex-col gap-4 border border-transparent hover:border-indigo-100">
+              <button onClick={() => setMode(AppMode.CHAT)} className="p-6 bg-white rounded-[2rem] shadow-md hover:shadow-xl transition-all text-left flex flex-col gap-4">
                 <MessageCircleIcon className="w-6 h-6 text-indigo-600" />
                 <h3 className="text-lg font-black text-slate-900 leading-tight">Tanya Ryuu</h3>
               </button>
             </div>
 
-            <button onClick={handleStartExam} className="w-full bg-slate-900 p-8 rounded-[2.5rem] text-white flex justify-between items-center shadow-2xl active:scale-95 transition-all mb-8 hover:bg-slate-800">
+            <button onClick={handleStartExam} className="w-full bg-slate-900 p-8 rounded-[2.5rem] text-white flex justify-between items-center shadow-2xl active:scale-95 transition-all mb-8 hover:bg-indigo-600">
               <div className="text-left">
-                <h3 className="text-3xl font-black mb-1 tracking-tight">Simulasi Ujian</h3>
-                <p className="text-slate-400 font-medium">Uji penguasaan materi.</p>
+                <h3 className="text-3xl font-black mb-1 tracking-tight">Evaluasi Ujian</h3>
+                <p className="text-slate-400 font-medium">Uji penguasaan materi secara menyeluruh.</p>
               </div>
-              <div className="bg-indigo-600 px-6 py-3 rounded-2xl font-black text-sm uppercase">Mulai</div>
+              <div className="bg-indigo-500/20 px-6 py-3 rounded-2xl font-black text-sm uppercase border border-white/20">Mulai</div>
             </button>
 
-            <button onClick={() => setMode(AppMode.UPLOAD)} className="mx-auto text-slate-400 font-black text-[10px] tracking-widest hover:text-slate-600 transition-colors uppercase">Ganti File</button>
+            <button onClick={() => setMode(AppMode.UPLOAD)} className="mx-auto text-slate-400 font-black text-[10px] tracking-widest hover:text-slate-600 uppercase">Ganti File Materi</button>
           </div>
         );
 
@@ -202,7 +183,7 @@ function App() {
                     deepAnalysis: mode === AppMode.EXPLAIN_DEEP ? content : undefined
                   };
                   saveLessonToLibrary(lesson);
-                  setNotification({message: "Tersimpan di Koleksi!", type: "success"});
+                  setNotification({message: "Berhasil disimpan!", type: "success"});
                 }} 
                 className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-black shadow-lg text-xs hover:bg-indigo-700 transition-all"
               >
@@ -215,8 +196,8 @@ function App() {
           </div>
         );
 
-      case AppMode.FLASHCARDS: return <FlashcardGame cards={flashcards} onBack={(s) => { awardXP(s*10, "Sesi Kuis"); setMode(AppMode.DASHBOARD); }} />;
-      case AppMode.EXAM: return <ExamMode questions={examQuestions} onBack={(s) => { awardXP(s*5, "Ujian Selesai"); setMode(AppMode.DASHBOARD); }} />;
+      case AppMode.FLASHCARDS: return <FlashcardGame cards={flashcards} onBack={(s) => { awardXP(s*10, "Latihan Selesai"); setMode(AppMode.DASHBOARD); }} />;
+      case AppMode.EXAM: return <ExamMode questions={examQuestions} onBack={(s) => { awardXP(s*5, "Evaluasi Selesai"); setMode(AppMode.DASHBOARD); }} />;
       case AppMode.CHAT: return <ChatInterface file={file!} onBack={() => setMode(AppMode.DASHBOARD)} />;
       case AppMode.LIBRARY: return <LibraryView onBack={() => setMode(AppMode.UPLOAD)} onLoadLesson={(l) => { setFile(l.file); setContent(l.summary || l.deepAnalysis || ''); setMode(AppMode.DASHBOARD); }} />;
       default: return null;
@@ -226,7 +207,7 @@ function App() {
   return (
     <div className="h-full bg-[#F8FAFC]">
       {notification && (
-        <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[1000] px-6 py-3 rounded-2xl shadow-2xl animate-view-entry font-black text-xs uppercase tracking-widest border border-white/20 text-white ${notification.type === 'error' ? 'bg-red-500' : 'bg-indigo-600'}`}>
+        <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[1000] px-6 py-3 rounded-2xl shadow-2xl animate-view-entry font-black text-xs uppercase tracking-widest border border-white/20 text-white bg-indigo-600`}>
           {notification.message}
         </div>
       )}

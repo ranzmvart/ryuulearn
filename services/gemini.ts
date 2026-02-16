@@ -1,163 +1,154 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { Flashcard, ExamQuestion } from "../types.ts";
 
-// gemini-flash-lite-latest adalah model dengan RPM (Requests Per Minute) tertinggi di paket gratis.
-const MODEL_UNLIMITED = 'gemini-flash-lite-latest';
-const MODEL_SMART = 'gemini-3-flash-preview'; 
-
-const getAI = () => {
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+const getApiKey = () => {
+  try {
+    // @ts-ignore
+    const key = (typeof process !== 'undefined' && process.env?.API_KEY) || "";
+    return key.trim();
+  } catch {
+    return "";
+  }
 };
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const PRIMARY_MODEL = 'gemini-3-flash-preview';
 
-/**
- * Logika Retry Eksponensial: 
- * Membuat aplikasi seolah 'unlimited' dengan mencoba kembali secara otomatis 
- * saat kuota habis sementara.
- */
-const withRetry = async <T>(fn: () => Promise<T>, retries = 5, delay = 1500): Promise<T> => {
+// Data Simulasi untuk Mode Demo (Tanpa API Key)
+const MOCK_DATA = {
+  explanation: "# 🚀 Mode Demo Aktif\n\nSelamat datang di **RyuuLearn**! Karena aplikasi ini sedang berjalan tanpa API Key, Ryuu menggunakan materi simulasi untuk menunjukkan kemampuannya.\n\n### Yang Bisa Anda Lakukan:\n1. **Lihat Ringkasan:** Materi akan diformat dengan Markdown yang cantik.\n2. **Uji Kemampuan:** Coba fitur kuis dan ujian dengan soal-soal simulasi.\n3. **Coba KaTeX:** Ryuu mendukung rumus matematika seperti $\\int_{a}^{b} f(x) dx = F(b) - F(a)$.\n\n*Catatan: Masukkan API Key di pengaturan untuk menganalisis file Anda sendiri secara nyata.*",
+  flashcards: [
+    { 
+      question: "Apakah Ryuu bisa belajar tanpa internet?", 
+      options: ["Tidak bisa sama sekali", "Bisa, menggunakan fitur Perpustakaan Offline", "Hanya untuk chatting", "Hanya di malam hari"], 
+      correctIndex: 1, 
+      explanation: "Ryuu memiliki fitur 'Simpan ke Koleksi' yang memungkinkan Anda membuka kembali materi yang sudah dianalisis bahkan saat offline." 
+    },
+    { 
+      question: "Bagaimana cara mendapatkan kecerdasan AI asli di Ryuu?", 
+      options: ["Membayar langganan", "Memasukkan API Key Google AI Studio", "Menunggu update otomatis", "Mengunduh file tambahan"], 
+      correctIndex: 1, 
+      explanation: "Ryuu menggunakan API Gemini dari Google. Dengan memasukkan API Key sendiri, Ryuu akan bisa membaca file apa pun yang Anda berikan." 
+    }
+  ],
+  exam: [
+    {
+      id: 1,
+      question: "Manakah fitur utama yang membedakan RyuuLearn dengan pembaca PDF biasa?",
+      options: ["Bisa zoom in", "Bisa mengubah PDF menjadi kuis dan tutor interaktif", "Hanya bisa membaca teks", "Memiliki mode gelap saja"],
+      correctIndex: 1,
+      explanation: "RyuuLearn bukan sekadar pembaca PDF; ia menggunakan AI untuk memahami konten dan membantu Anda belajar lewat kuis dan diskusi.",
+      difficulty: "Medium",
+      topic: "Fitur Aplikasi"
+    }
+  ]
+};
+
+const getAI = () => {
+  const apiKey = getApiKey();
+  if (!apiKey) return null;
+  return new GoogleGenAI({ apiKey });
+};
+
+const withRetry = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
+  const ai = getAI();
+  if (!ai) {
+    // Simulasi jeda loading agar terasa natural
+    await new Promise(r => setTimeout(r, 1200));
+    return fallback;
+  }
+
   try {
     return await fn();
   } catch (error: any) {
-    const isQuotaError = error?.message?.includes("429") || 
-                         error?.message?.includes("quota") || 
-                         error?.message?.includes("RESOURCE_EXHAUSTED");
-    
-    if (isQuotaError && retries > 0) {
-      console.warn(`Kuota API penuh, mengoptimalkan akses gratis... Sisa percobaan: ${retries}`);
-      await sleep(delay);
-      return withRetry(fn, retries - 1, delay * 2);
-    }
-    throw error;
+    console.error("Gemini API Error:", error);
+    return fallback;
   }
-};
-
-const getCacheKey = (data: string, prefix: string) => {
-  let hash = 0;
-  for (let i = 0; i < Math.min(data.length, 500); i++) {
-    hash = ((hash << 5) - hash) + data.charCodeAt(i);
-    hash |= 0;
-  }
-  return `ryuu_v3_cache_${prefix}_${hash}`;
-};
-
-const LATEX_INSTRUCTION = `
-PERINTAH FORMATTING (PENTING):
-1. Gunakan LaTeX untuk SEMUA ekspresi teknis (Matematika, Kimia, Fisika).
-   - Inline: $rumus$.
-   - Blok: $$rumus$$.
-2. Bahasa Indonesia Formal.
-3. Gunakan Markdown Bold (**teks**) untuk istilah penting agar mudah dibaca.
-`;
-
-const getContents = (base64Data: string, mimeType: string, promptText: string) => {
-  const parts: any[] = [];
-  if (mimeType === 'text/plain') {
-    const textData = decodeURIComponent(escape(atob(base64Data)));
-    parts.push({ text: `DOKUMEN SUMBER:\n${textData}` });
-  } else {
-    parts.push({ inlineData: { mimeType, data: base64Data } });
-  }
-  parts.push({ text: `${LATEX_INSTRUCTION}\n\nKONTEKS TUGAS: ${promptText}` });
-  return { parts };
 };
 
 export const generateExplanation = async (base64Data: string, mimeType: string, type: 'SUMMARY' | 'DEEP'): Promise<string> => {
-  const cacheKey = getCacheKey(base64Data, `explain_${type}`);
-  const cached = localStorage.getItem(cacheKey);
-  if (cached) return cached;
-
   return withRetry(async () => {
-    const ai = getAI();
-    const promptText = type === 'SUMMARY' 
-      ? "Buat ringkasan eksekutif padat dalam poin-poin yang mudah dihafal."
-      : "Berikan analisis mendalam materi ini. Jelaskan langkah demi langkah dengan analogi dunia nyata.";
-
+    const ai = getAI()!;
+    const prompt = type === 'SUMMARY' ? "Ringkas materi ini secara padat." : "Jelaskan materi ini secara mendalam dengan analogi.";
     const response = await ai.models.generateContent({
-      model: MODEL_UNLIMITED,
-      contents: getContents(base64Data, mimeType, promptText)
+      model: PRIMARY_MODEL,
+      contents: { parts: [{ text: prompt }, { inlineData: { mimeType, data: base64Data } }] }
     });
-    const result = response.text || "Gagal merespon.";
-    localStorage.setItem(cacheKey, result);
-    return result;
-  });
+    return response.text || MOCK_DATA.explanation;
+  }, MOCK_DATA.explanation);
 };
 
-export const generateFlashcards = async (base64Data: string, mimeType: string, count: number = 6): Promise<Flashcard[]> => {
-  const cacheKey = getCacheKey(base64Data, `flashcards_${count}`);
-  const cached = localStorage.getItem(cacheKey);
-  if (cached) return JSON.parse(cached);
-
+export const generateFlashcards = async (base64Data: string, mimeType: string): Promise<Flashcard[]> => {
   return withRetry(async () => {
-    const ai = getAI();
-    const schema = {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          question: { type: Type.STRING },
-          options: { type: Type.ARRAY, items: { type: Type.STRING } },
-          correctIndex: { type: Type.INTEGER },
-          explanation: { type: Type.STRING }
-        },
-        required: ["question", "options", "correctIndex", "explanation"]
-      }
-    };
-
+    const ai = getAI()!;
     const response = await ai.models.generateContent({
-      model: MODEL_UNLIMITED,
-      contents: getContents(base64Data, mimeType, `Buat ${count} soal kuis interaktif (pilihan ganda) berdasarkan materi ini.`),
-      config: { responseMimeType: "application/json", responseSchema: schema }
+      model: PRIMARY_MODEL,
+      contents: { parts: [{ text: "Buat 5 kuis pilihan ganda berdasarkan materi ini." }, { inlineData: { mimeType, data: base64Data } }] },
+      config: { 
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              question: { type: Type.STRING },
+              options: { type: Type.ARRAY, items: { type: Type.STRING } },
+              correctIndex: { type: Type.INTEGER },
+              explanation: { type: Type.STRING }
+            },
+            required: ["question", "options", "correctIndex", "explanation"]
+          }
+        }
+      }
     });
-    const result = response.text || '[]';
-    localStorage.setItem(cacheKey, result);
-    return JSON.parse(result) as Flashcard[];
-  });
+    return JSON.parse(response.text || '[]');
+  }, MOCK_DATA.flashcards as Flashcard[]);
 };
 
-export const generateExam = async (base64Data: string, mimeType: string, difficulty: 'Easy' | 'Medium' | 'Hard', count: number = 5): Promise<ExamQuestion[]> => {
-  const cacheKey = getCacheKey(base64Data, `exam_${difficulty}_${count}`);
-  const cached = localStorage.getItem(cacheKey);
-  if (cached) return JSON.parse(cached);
-
+export const generateExam = async (base64Data: string, mimeType: string): Promise<ExamQuestion[]> => {
   return withRetry(async () => {
-    const ai = getAI();
-    const schema = {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          id: { type: Type.INTEGER },
-          question: { type: Type.STRING },
-          options: { type: Type.ARRAY, items: { type: Type.STRING } },
-          correctIndex: { type: Type.INTEGER },
-          explanation: { type: Type.STRING },
-          difficulty: { type: Type.STRING },
-          topic: { type: Type.STRING }
-        },
-        required: ["id", "question", "options", "correctIndex", "explanation", "difficulty", "topic"]
-      }
-    };
-
+    const ai = getAI()!;
     const response = await ai.models.generateContent({
-      model: MODEL_SMART, // Model lebih cerdas untuk simulasi ujian
-      contents: getContents(base64Data, mimeType, `Buat simulasi ujian tingkat ${difficulty} sebanyak ${count} soal.`),
-      config: { responseMimeType: "application/json", responseSchema: schema }
+      model: PRIMARY_MODEL,
+      contents: { parts: [{ text: "Buat simulasi ujian lengkap (5 soal) berdasarkan materi ini." }, { inlineData: { mimeType, data: base64Data } }] },
+      config: { 
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              id: { type: Type.INTEGER },
+              question: { type: Type.STRING },
+              options: { type: Type.ARRAY, items: { type: Type.STRING } },
+              correctIndex: { type: Type.INTEGER },
+              explanation: { type: Type.STRING },
+              difficulty: { type: Type.STRING },
+              topic: { type: Type.STRING }
+            },
+            required: ["id", "question", "options", "correctIndex", "explanation", "difficulty", "topic"]
+          }
+        }
+      }
     });
-    const result = response.text || '[]';
-    localStorage.setItem(cacheKey, result);
-    return JSON.parse(result) as ExamQuestion[];
-  });
+    return JSON.parse(response.text || '[]');
+  }, MOCK_DATA.exam as ExamQuestion[]);
 };
 
 export const chatWithDocument = async (base64Data: string, mimeType: string, history: any[], newMessage: string, attachment?: string): Promise<string> => {
-  return withRetry(async () => {
-    const ai = getAI();
+  const ai = getAI();
+  if (!ai) return "Halo! Ryuu sedang dalam **Mode Demo**. Di mode ini, saya tidak bisa membaca file Anda secara nyata, tapi saya bisa menjawab pertanyaan umum seputar cara belajar yang efektif!";
+  
+  try {
+    const parts: any[] = [{ text: newMessage }, { inlineData: { mimeType, data: base64Data } }];
+    if (attachment) parts.push({ inlineData: { mimeType: 'image/jpeg', data: attachment } });
+
     const response = await ai.models.generateContent({
-      model: MODEL_UNLIMITED,
-      contents: getContents(base64Data, mimeType, `Gunakan materi sebagai referensi utama. Jawab pertanyaan: ${newMessage}`)
+      model: PRIMARY_MODEL,
+      contents: { parts }
     });
-    return response.text || "Tutor sedang tidak tersedia.";
-  });
+    return response.text || "Tutor Ryuu sedang berpikir...";
+  } catch {
+    return "Maaf, ada gangguan teknis pada otak AI saya.";
+  }
 };
